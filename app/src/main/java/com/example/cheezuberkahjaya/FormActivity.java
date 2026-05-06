@@ -1,7 +1,5 @@
 package com.example.cheezuberkahjaya;
 
-import android.content.ContentValues;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -11,6 +9,12 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import com.example.cheezuberkahjaya.api.ApiService;
+import com.example.cheezuberkahjaya.api.RetrofitClient;
+import java.util.Map;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class FormActivity extends AppCompatActivity {
 
@@ -20,7 +24,7 @@ public class FormActivity extends AppCompatActivity {
     Button btnSimpan;
     ImageButton btnBack;
     TextView tvJudul;
-    DatabaseHelper dbHelper;
+    ApiService apiService;
     int idBarang = -1;
 
     @Override
@@ -37,20 +41,16 @@ public class FormActivity extends AppCompatActivity {
         btnSimpan = findViewById(R.id.btnSimpan);
         btnBack = findViewById(R.id.btnBack);
         tvJudul = findViewById(R.id.tvJudul);
-        dbHelper = new DatabaseHelper(this);
 
-        // Tombol back
+        apiService = RetrofitClient.getClient().create(ApiService.class);
         btnBack.setOnClickListener(v -> finish());
 
-        // Cek mode edit
         if (getIntent().hasExtra("id")) {
             idBarang = getIntent().getIntExtra("id", -1);
             tvJudul.setText("Edit Barang");
-
             etNama.setText(getIntent().getStringExtra("nama"));
             etJumlah.setText(String.valueOf(getIntent().getIntExtra("jumlah", 0)));
             etTanggal.setText(getIntent().getStringExtra("tanggal"));
-
             String jenis = getIntent().getStringExtra("jenis");
             if (jenis != null && jenis.equals("masuk")) {
                 rbMasuk.setChecked(true);
@@ -73,25 +73,36 @@ public class FormActivity extends AppCompatActivity {
             return;
         }
 
-        int jumlah = Integer.parseInt(jumlahStr);
-
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COL_NAMA, nama);
-        values.put(DatabaseHelper.COL_JUMLAH, jumlah);
-        values.put(DatabaseHelper.COL_JENIS, jenis);
-        values.put(DatabaseHelper.COL_TANGGAL, tanggal);
-
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        Barang barang = new Barang(idBarang, nama, Integer.parseInt(jumlahStr), jenis, tanggal);
 
         if (idBarang == -1) {
-            db.insert(DatabaseHelper.TABLE_BARANG, null, values);
-            Toast.makeText(this, "Data berhasil ditambahkan!", Toast.LENGTH_SHORT).show();
+            apiService.createBarang(barang).enqueue(new Callback<Map<String, String>>() {
+                @Override
+                public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+                    if (response.isSuccessful()) {
+                        Toast.makeText(FormActivity.this, "Data berhasil ditambahkan!", Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
+                }
+                @Override
+                public void onFailure(Call<Map<String, String>> call, Throwable t) {
+                    Toast.makeText(FormActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
         } else {
-            db.update(DatabaseHelper.TABLE_BARANG, values,
-                    "id = ?", new String[]{String.valueOf(idBarang)});
-            Toast.makeText(this, "Data berhasil diupdate!", Toast.LENGTH_SHORT).show();
+            apiService.updateBarang(barang).enqueue(new Callback<Map<String, String>>() {
+                @Override
+                public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+                    if (response.isSuccessful()) {
+                        Toast.makeText(FormActivity.this, "Data berhasil diupdate!", Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
+                }
+                @Override
+                public void onFailure(Call<Map<String, String>> call, Throwable t) {
+                    Toast.makeText(FormActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
         }
-
-        finish();
     }
 }

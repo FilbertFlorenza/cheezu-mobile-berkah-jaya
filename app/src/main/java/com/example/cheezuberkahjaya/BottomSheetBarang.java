@@ -1,17 +1,22 @@
 package com.example.cheezuberkahjaya;
 
-import android.content.Intent;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import com.example.cheezuberkahjaya.api.ApiService;
+import com.example.cheezuberkahjaya.api.RetrofitClient;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
+import java.util.Map;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class BottomSheetBarang extends BottomSheetDialogFragment {
 
@@ -46,7 +51,6 @@ public class BottomSheetBarang extends BottomSheetDialogFragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_bottom_sheet, container, false);
 
-        // Ambil data dari arguments
         Bundle args = getArguments();
         barang = new Barang(
                 args.getInt("id"),
@@ -62,24 +66,31 @@ public class BottomSheetBarang extends BottomSheetDialogFragment {
 
         tvNama.setText(barang.getNamaBarang());
 
-        // Tombol Edit
         btnEdit.setOnClickListener(v -> {
             dismiss();
             if (listener != null) listener.onEdit(barang);
         });
 
-        // Tombol Hapus
         btnHapus.setOnClickListener(v -> {
             new AlertDialog.Builder(requireContext())
                     .setTitle("Hapus Data")
                     .setMessage("Yakin ingin menghapus " + barang.getNamaBarang() + "?")
                     .setPositiveButton("Hapus", (dialog, which) -> {
-                        DatabaseHelper dbHelper = new DatabaseHelper(requireContext());
-                        SQLiteDatabase db = dbHelper.getWritableDatabase();
-                        db.delete(DatabaseHelper.TABLE_BARANG, "id = ?",
-                                new String[]{String.valueOf(barang.getId())});
-                        dismiss();
-                        if (listener != null) listener.onDelete();
+                        ApiService apiService = RetrofitClient.getClient().create(ApiService.class);
+                        apiService.deleteBarang(barang.getId()).enqueue(new Callback<Map<String, String>>() {
+                            @Override
+                            public void onResponse(Call<Map<String, String>> call, Response<Map<String, String>> response) {
+                                if (response.isSuccessful()) {
+                                    Toast.makeText(requireContext(), "Data berhasil dihapus!", Toast.LENGTH_SHORT).show();
+                                    dismiss();
+                                    if (listener != null) listener.onDelete();
+                                }
+                            }
+                            @Override
+                            public void onFailure(Call<Map<String, String>> call, Throwable t) {
+                                Toast.makeText(requireContext(), "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
                     })
                     .setNegativeButton("Batal", null)
                     .show();

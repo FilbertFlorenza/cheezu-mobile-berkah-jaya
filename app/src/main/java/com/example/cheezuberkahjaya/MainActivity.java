@@ -1,25 +1,31 @@
 package com.example.cheezuberkahjaya;
 
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.cheezuberkahjaya.api.ApiService;
+import com.example.cheezuberkahjaya.api.RetrofitClient;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
     RecyclerView rvBarang;
     FloatingActionButton fabTambah;
     TextView tvTotalMasuk, tvTotalKeluar;
-    DatabaseHelper dbHelper;
-    List<Barang> barangList;
     BarangAdapter adapter;
+    ApiService apiService;
+    List<Barang> barangList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,8 +36,8 @@ public class MainActivity extends AppCompatActivity {
         fabTambah = findViewById(R.id.fabTambah);
         tvTotalMasuk = findViewById(R.id.tvTotalMasuk);
         tvTotalKeluar = findViewById(R.id.tvTotalKeluar);
-        dbHelper = new DatabaseHelper(this);
 
+        apiService = RetrofitClient.getClient().create(ApiService.class);
         rvBarang.setLayoutManager(new LinearLayoutManager(this));
 
         loadData();
@@ -43,60 +49,59 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadData() {
-        barangList = new ArrayList<>();
-        int totalMasuk = 0;
-        int totalKeluar = 0;
+        apiService.getAllBarang().enqueue(new Callback<BarangResponse>() {
+            @Override
+            public void onResponse(Call<BarangResponse> call, Response<BarangResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    barangList.clear();
+                    int totalMasuk = 0, totalKeluar = 0;
 
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_BARANG +
-                " ORDER BY id DESC", null);
+                    List<Barang> data = response.body().data;
+                    if (data != null) {
+                        for (Barang barang : data) {
+                            barangList.add(barang);
 
-        if (cursor.moveToFirst()) {
-            do {
-                Barang barang = new Barang(
-                        cursor.getInt(0),
-                        cursor.getString(1),
-                        cursor.getInt(2),
-                        cursor.getString(3),
-                        cursor.getString(4)
-                );
-                barangList.add(barang);
+                            if ("masuk".equals(barang.getJenis())) {
+                                totalMasuk += barang.getJumlah();
+                            } else {
+                                totalKeluar += barang.getJumlah();
+                            }
+                        }
+                    }
 
-                if (barang.getJenis().equals("masuk")) {
-                    totalMasuk += barang.getJumlah();
-                } else {
-                    totalKeluar += barang.getJumlah();
+                    tvTotalMasuk.setText(String.valueOf(totalMasuk));
+                    tvTotalKeluar.setText(String.valueOf(totalKeluar));
+
+                    adapter = new BarangAdapter(MainActivity.this, barangList, barang -> {
+                        BottomSheetBarang sheet = BottomSheetBarang.newInstance(barang);
+                        sheet.setOnActionListener(new BottomSheetBarang.OnActionListener() {
+                            @Override
+                            public void onEdit(Barang barang) {
+                                Intent intent = new Intent(MainActivity.this, FormActivity.class);
+                                intent.putExtra("id", barang.getId());
+                                intent.putExtra("nama", barang.getNamaBarang());
+                                intent.putExtra("jumlah", barang.getJumlah());
+                                intent.putExtra("jenis", barang.getJenis());
+                                intent.putExtra("tanggal", barang.getTanggal());
+                                startActivity(intent);
+                            }
+
+                            @Override
+                            public void onDelete() {
+                                loadData();
+                            }
+                        });
+                        sheet.show(getSupportFragmentManager(), "BottomSheetBarang");
+                    });
+                    rvBarang.setAdapter(adapter);
                 }
-            } while (cursor.moveToNext());
-        }
-        cursor.close();
+            }
 
-        tvTotalMasuk.setText(String.valueOf(totalMasuk));
-        tvTotalKeluar.setText(String.valueOf(totalKeluar));
-
-        adapter = new BarangAdapter(this, barangList, barang -> {
-            BottomSheetBarang sheet = BottomSheetBarang.newInstance(barang);
-            sheet.setOnActionListener(new BottomSheetBarang.OnActionListener() {
-                @Override
-                public void onEdit(Barang barang) {
-                    Intent intent = new Intent(MainActivity.this, FormActivity.class);
-                    intent.putExtra("id", barang.getId());
-                    intent.putExtra("nama", barang.getNamaBarang());
-                    intent.putExtra("jumlah", barang.getJumlah());
-                    intent.putExtra("jenis", barang.getJenis());
-                    intent.putExtra("tanggal", barang.getTanggal());
-                    startActivity(intent);
-                }
-
-                @Override
-                public void onDelete() {
-                    loadData();
-                }
-            });
-            sheet.show(getSupportFragmentManager(), "BottomSheetBarang");
+            @Override
+            public void onFailure(Call<BarangResponse> call, Throwable t) {
+                Toast.makeText(MainActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            }
         });
-
-        rvBarang.setAdapter(adapter);
     }
 
     @Override
