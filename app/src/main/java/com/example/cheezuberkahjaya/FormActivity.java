@@ -15,6 +15,8 @@ import java.util.Map;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import android.app.DatePickerDialog;
+import java.util.Calendar;
 
 public class FormActivity extends AppCompatActivity {
 
@@ -60,6 +62,7 @@ public class FormActivity extends AppCompatActivity {
         }
 
         btnSimpan.setOnClickListener(v -> simpanData());
+        etTanggal.setOnClickListener(v -> showDatePicker());
     }
 
     private void simpanData() {
@@ -104,5 +107,22 @@ public class FormActivity extends AppCompatActivity {
                 }
             });
         }
+    }
+
+    private void showDatePicker() {
+        Calendar calendar = Calendar.getInstance();
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+
+        DatePickerDialog dialog = new DatePickerDialog(this,
+                (view, selectedYear, selectedMonth, selectedDay) -> {
+                    // Format jadi YYYY-MM-DD
+                    String tanggal = String.format("%04d-%02d-%02d",
+                            selectedYear, selectedMonth + 1, selectedDay);
+                    etTanggal.setText(tanggal);
+                }, year, month, day);
+
+        dialog.show();
     }
 }
